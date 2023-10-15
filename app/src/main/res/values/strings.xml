@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">TaskManagementSQLite</string>
+
+    <string-array name="category">
+        <item>Work</item>
+        <item>Personal</item>
+        <item>Shopping</item>
+        <item>Study</item>
+        <item>Health</item>
+        <item>Other</item>
+    </string-array>
+
+    <string-array name="priority">
+        <item>High</item>
+        <item>Medium</item>
+        <item>Low</item>
+    </string-array>
+</resources>
