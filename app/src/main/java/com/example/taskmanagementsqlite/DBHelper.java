@@ -19,6 +19,15 @@ public class DBHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME="TasksDb";
     private static final int VERSION=1;
     Context context;
+
+
+    // Table name and column names
+    public static final String TABLE_USERS = "users";
+    public static final String COLUMN_ID = "_id";
+    public static final String COLUMN_USERNAME = "username";
+    public static final String COLUMN_PASSWORD = "password";
+
+
     private  static final String TASK_TABLE="Tasks";
     private  static final String CATEGORIES_TABLE="Categories";
     private  static final String PRIORITIES_TABLE="Priorities";
@@ -61,12 +70,20 @@ public class DBHelper extends SQLiteOpenHelper {
                 PRIORITY_ID + " INTEGER PRIMARY KEY AUTOINCREMENT , " +
                 PRIORITY_NAME + " TEXT)");
 
-
+        String CREATE_USERS_TABLE = "CREATE TABLE " + TABLE_USERS + " ("
+                + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + COLUMN_USERNAME + " TEXT, "
+                + COLUMN_PASSWORD + " TEXT"
+                + ")";
+        db.execSQL(CREATE_USERS_TABLE);
     }
+
+
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_USERS);
+        onCreate(db);
     }
     public void addTask(String taskName, String taskDescription, String deadlineMillis, String categoryName, String priorityName) {
         SQLiteDatabase db = this.getWritableDatabase();

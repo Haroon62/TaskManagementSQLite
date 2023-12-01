@@ -5,9 +5,15 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.annotation.SuppressLint;
+import android.app.AlarmManager;
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.app.PendingIntent;
+import android.app.TimePickerDialog;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Bundle;
+import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,23 +21,36 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
+import android.widget.TimePicker;
 import android.widget.Toast;
 
 import com.example.Adapters.TaskAdapter;
 import com.example.Models.TaskModel;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     FloatingActionButton actionButton;
     RecyclerView recyclerView;
     ArrayList<TaskModel> tasklist;
     DBHelper dbHelper;
+    private EditText etLoginUsername, etLoginPassword;
+    private Button btnLogin, btnSignup;
+
+    private UserDAO userDAO;
+    private int year, month, day, hour, minute;
+
     private boolean isMenuOpen = false;
 
     TaskAdapter taskAdapter;
@@ -45,17 +64,23 @@ public class MainActivity extends AppCompatActivity {
         recyclerView=findViewById(R.id.recycler);
         ImageView fabItem1 = findViewById(R.id.fabItem1);
         ImageView fabItem2 = findViewById(R.id.fabItem2);
-
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         dbHelper=new DBHelper(this);
         taskModel=new TaskModel();
         tasklist=new ArrayList<>();
 
+        NotificationUtils.createNotificationChannel(this);
         tasklist=dbHelper.fetchData();
 
         for (TaskModel contact : tasklist) {
             Log.d("ContactList", "ID: " + contact.getId() + "  ,Name: " + contact.getName() + ", Phone: " + contact.getDescription()+"category: " + contact.getCategorname() + "  ,priority: " + contact.getPeriorityname());
         }
+
+        year = Calendar.getInstance().get(Calendar.YEAR);
+        month = Calendar.getInstance().get(Calendar.MONTH);
+        day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
+        hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        minute = Calendar.getInstance().get(Calendar.MINUTE);
 
         taskAdapter = new TaskAdapter(tasklist, this, new TaskAdapter.OnUpdateClickListener() {
             @Override
@@ -106,7 +131,15 @@ public class MainActivity extends AppCompatActivity {
 
         final AlertDialog alertDialog = dialogBuilder.create();
         List<String> existingCategories = dbHelper.getAllCategories();
+        editTextdeadline.setText("");
 
+        editTextdeadline.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showDateTimePickerDialog(editTextdeadline);
+            }
+        });
+        // Update the EditText with the selected date and time
 
         ArrayAdapter<String> adaptercategory = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, existingCategories);
         adaptercategory.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -130,12 +163,12 @@ public class MainActivity extends AppCompatActivity {
                 String categoryName = category.getSelectedItem().toString();
 
 
-
                 if (!name.isEmpty() && !deadline.isEmpty()&&!descr.isEmpty()) {
 
 
                     TaskModel modelClass=new TaskModel(position,name,descr,deadline,categoryName,priorityName);
 
+                    setNotification(modelClass);
 //                    Log.d("MainActivity", "Category ID: " + categoryId);
 //                    Log.d("MainActivity", "Priority ID: " + priorityId);
                     dbHelper.addTask(name,descr,deadline,categoryName,priorityName);
@@ -311,7 +344,66 @@ public class MainActivity extends AppCompatActivity {
         view.startAnimation(animation);
         view.setVisibility(View.INVISIBLE);
     }
+    private void showDateTimePickerDialog(final EditText editText) {
+        // Create a DatePickerDialog
+        DatePickerDialog datePickerDialog = new DatePickerDialog(
+                this,
+                new DatePickerDialog.OnDateSetListener() {
+                    @Override
+                    public void onDateSet(DatePicker view, int year, int monthOfYear, int dayOfMonth) {
+                        MainActivity.this.year = year;
+                        month = monthOfYear;
+                        day = dayOfMonth;
 
+                        // Create a TimePickerDialog after setting the date
+                        TimePickerDialog timePickerDialog = new TimePickerDialog(
+                                MainActivity.this,
+                                new TimePickerDialog.OnTimeSetListener() {
+                                    @Override
+                                    public void onTimeSet(TimePicker view, int hourOfDay, int minute) {
+                                        MainActivity.this.hour = hourOfDay;
+                                        MainActivity.this.minute = minute;
 
+                                        // Update the EditText with the selected date and time
+                                        Calendar selectedDateTime = Calendar.getInstance();
+                                        selectedDateTime.set(year, month, day, hour, minute);
+                                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+                                        editText.setText(sdf.format(selectedDateTime.getTime()));
+                                    }
+                                },
+                                hour,
+                                minute,
+                                DateFormat.is24HourFormat(MainActivity.this)
+                        );
+                        timePickerDialog.show();
+                    }
+                },
+                year,
+                month,
+                day
+        );
+        datePickerDialog.show();
+    }
+
+    private void setNotification(TaskModel taskModel) {
+        // Convert deadline string to Date object
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+        try {
+            Date deadlineDate = sdf.parse(taskModel.getDeadline());
+
+            // Set up AlarmManager to trigger a notification at the specified deadline
+            AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+            Intent intent = new Intent(this, NotificationReceiver.class);
+            intent.putExtra("TASK_NAME", taskModel.getName());
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+
+            if (alarmManager != null) {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, deadlineDate.getTime(), pendingIntent);
+            }
+
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+    }
 
 }
